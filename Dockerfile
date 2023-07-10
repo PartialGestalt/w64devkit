@@ -18,6 +18,7 @@ ARG NASM_VERSION=2.15.05
 ARG PDCURSES_VERSION=3.9
 ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
+ARG ZLIB_VERSION=1.2.13
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
@@ -40,7 +41,9 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
-    https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz
+    https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz \
+    https://www.zlib.net/zlib-$ZLIB_VERSION.tar.gz 
+
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xJf binutils-$BINUTILS_VERSION.tar.xz \
@@ -58,7 +61,8 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
  && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
- && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz
+ && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz \
+ && tar xzf zlib-$ZLIB_VERSION.tar.gz
 COPY src/w64devkit.c src/w64devkit.ico \
      src/alias.c src/debugbreak.c src/pkg-config.c \
      $PREFIX/src/
@@ -463,6 +467,14 @@ RUN cat $PREFIX/src/cppcheck-*.patch | patch -p1 \
         -Os -fno-asynchronous-unwind-tables -Wl,--gc-sections -s -nostdlib \
         -o $PREFIX/bin/cppcheck.exe \
         $PREFIX/src/alias.c -lkernel32
+
+WORKDIR /zlib-$ZLIB_VERSION
+RUN /zlib-$ZLIB_VERSION/configure \
+	--static \
+        --prefix=$PREFIX/$ARCH \
+ && make -j$(nproc) \
+	CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" LDFLAGS="-Wl,--gc-sections -s -lkernel32" \
+ && make install
 
 # Pack up a release
 
