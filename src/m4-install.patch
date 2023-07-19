@@ -1,0 +1,11 @@
+--- a/src/Makefile.in
++++ b/src/Makefile.in
+@@ -85,7 +85,7 @@
+ 
+ install: all
+ 	$(srcdir)/../mkinstalldirs $(DESTDIR)$(bindir)
+-	$(INSTALL_PROGRAM) m4 \
++	$(INSTALL_PROGRAM) m4.exe \
+ 		$(DESTDIR)$(bindir)/`echo m4 | sed '$(transform)'`
+ 
+ uninstall:

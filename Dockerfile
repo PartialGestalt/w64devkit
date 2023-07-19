@@ -19,6 +19,10 @@ ARG PDCURSES_VERSION=3.9
 ARG CPPCHECK_VERSION=2.10
 ARG VIM_VERSION=9.0
 ARG ZLIB_VERSION=1.2.13
+#ARG CSCOPE_VERSION=15.9
+ARG LIBGNURX_VERSION=2.5
+ARG LIBUSB_VERSION=1.0.26
+ARG M4_VERSION=1.4.3
 
 RUN apt-get update && apt-get install --yes --no-install-recommends \
   build-essential curl libgmp-dev libmpc-dev libmpfr-dev m4 zip
@@ -36,13 +40,16 @@ RUN curl --insecure --location --remote-name-all --remote-header-name \
     https://ftp.gnu.org/gnu/make/make-$MAKE_VERSION.tar.gz \
     https://ftp.gnu.org/gnu/libiconv/libiconv-$LIBICONV_VERSION.tar.gz \
     https://frippery.org/files/busybox/busybox-w32-$BUSYBOX_VERSION.tgz \
-    http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://www.nasm.us/pub/nasm/releasebuilds/$NASM_VERSION/nasm-$NASM_VERSION.tar.xz \
+    http://ftp.vim.org/pub/vim/unix/vim-$VIM_VERSION.tar.bz2 \
     https://github.com/universal-ctags/ctags/archive/refs/tags/v$CTAGS_VERSION.tar.gz \
     https://downloads.sourceforge.net/project/mingw-w64/mingw-w64/mingw-w64-release/mingw-w64-v$MINGW_VERSION.tar.bz2 \
     https://downloads.sourceforge.net/project/pdcurses/pdcurses/$PDCURSES_VERSION/PDCurses-$PDCURSES_VERSION.tar.gz \
     https://github.com/danmar/cppcheck/archive/$CPPCHECK_VERSION.tar.gz \
-    https://www.zlib.net/zlib-$ZLIB_VERSION.tar.gz 
+    https://www.zlib.net/zlib-$ZLIB_VERSION.tar.gz   \
+    https://master.dl.sourceforge.net/project/mingw/OldFiles/mingw-libgnurx-$LIBGNURX_VERSION-dev.tar.gz 
+
+#    https://newcontinuum.dl.sourceforge.net/project/cscope/cscope/v$CSCOPE_VERSION/cscope-$CSCOPE_VERSION.tar.gz
 
 COPY src/SHA256SUMS $PREFIX/src/
 RUN sha256sum -c $PREFIX/src/SHA256SUMS \
@@ -59,13 +66,16 @@ RUN sha256sum -c $PREFIX/src/SHA256SUMS \
  && tar xzf make-$MAKE_VERSION.tar.gz \
  && tar xjf mingw-w64-v$MINGW_VERSION.tar.bz2 \
  && tar xzf PDCurses-$PDCURSES_VERSION.tar.gz \
- && tar xJf nasm-$NASM_VERSION.tar.xz \
  && tar xjf vim-$VIM_VERSION.tar.bz2 \
  && tar xzf cppcheck-$CPPCHECK_VERSION.tar.gz \
- && tar xzf zlib-$ZLIB_VERSION.tar.gz
+ && tar xJf nasm-$NASM_VERSION.tar.xz \
+ && tar xzf zlib-$ZLIB_VERSION.tar.gz 
+
 COPY src/w64devkit.c src/w64devkit.ico \
      src/alias.c src/debugbreak.c src/pkg-config.c \
      $PREFIX/src/
+
+#RUN tar xzf cscope-$CSCOPE_VERSION.tar.gz
 
 ARG ARCH=x86_64-w64-mingw32
 
@@ -475,6 +485,54 @@ RUN /zlib-$ZLIB_VERSION/configure \
  && make -j$(nproc) \
 	CC=$ARCH-gcc AR=$ARCH-ar CFLAGS="-Os" LDFLAGS="-Wl,--gc-sections -s -lkernel32" \
  && make install
+
+WORKDIR $PREFIX/$ARCH
+RUN tar xzf /mingw-libgnurx-$LIBGNURX_VERSION-dev.tar.gz 
+
+#WORKDIR /cscope-$CSCOPE_VERSION
+#RUN ./configure \
+#        CC=$ARCH-gcc \
+#	--prefix=$PREFIX \
+#	--host=$ARCH \
+#	CFLAGS="-Os -isystem /deps/include -isystem $PREFIX/$ARCH/include " \
+#	LDFLAGS="-Wl,--gc-sections -s -lkernel32" \
+# && make -j$(nproc) \
+# && make install
+
+WORKDIR /
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+	https://github.com/libusb/libusb/releases/download/v$LIBUSB_VERSION/libusb-$LIBUSB_VERSION-binaries.7z 
+RUN apt-get install --yes --no-install-recommends p7zip
+RUN p7zip -d -k libusb-$LIBUSB_VERSION-binaries.7z
+
+WORKDIR /libusb-$LIBUSB_VERSION-binaries
+RUN cp -auxv libusb-MinGW-x64/* $PREFIX/$ARCH
+
+WORKDIR /
+RUN apt-get install --yes --no-install-recommends zip unzip
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+	https://storage.googleapis.com/google-code-archive-downloads/v2/code.google.com/cscope-win32/cscope-15.8a-win64rev1-static.zip
+WORKDIR $PREFIX/bin/
+RUN unzip /cscope-15.8a-win64rev1-static.zip
+
+WORKDIR /
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+    https://ftp.gnu.org/gnu/m4/m4-$M4_VERSION.tar.gz 
+RUN tar xzf m4-$M4_VERSION.tar.gz
+
+WORKDIR /m4-$M4_VERSION
+COPY src/m4-install.patch $PREFIX/src/
+RUN patch -p1 < $PREFIX/src/m4-install.patch
+RUN ./configure \
+        --host=$ARCH \
+        --disable-nls \
+        --prefix=$PREFIX \
+        CFLAGS="-Os -DEXE=m4.exe -DCMD=m4" \
+        LDFLAGS="-s" \
+ && make  -j$(nproc) \
+ && ls -alR . \
+ && make install
+
 
 # Pack up a release
 
