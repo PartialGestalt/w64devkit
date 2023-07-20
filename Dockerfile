@@ -489,6 +489,28 @@ RUN /zlib-$ZLIB_VERSION/configure \
 WORKDIR $PREFIX/$ARCH
 RUN tar xzf /mingw-libgnurx-$LIBGNURX_VERSION-dev.tar.gz 
 
+RUN apt-get install --yes --no-install-recommends \
+	zlib1g zlib1g-dev
+
+
+WORKDIR /
+RUN curl --insecure --location --remote-name-all --remote-header-name \
+	https://downloads.sourceforge.net/project/infozip/Zip%203.x%20%28latest%29/3.0/zip30.tar.gz
+RUN tar xzvf zip30.tar.gz 
+COPY src/zip30_devkit.patch $PREFIX/src/
+
+WORKDIR /zip30
+RUN patch -p1 < $PREFIX/src/zip30_devkit.patch
+RUN make -f win32/makefile.gcc \
+        CC=$ARCH-gcc \
+	WINDRES=$ARCH-windres \
+        OPT=  \
+	CFLAGS_EXTRA="-DMB_CUR_MAX=4 -I$PREFIX/$ARCH/include"  \
+	LOCAL_ZIP="-DNO_ASM" \
+	LDFLAGS_EXTRA="-L$PREFIX/$ARCH/lib" \
+	USEZLIB=1 \
+  && cp zip.exe $PREFIX/bin/
+
 #WORKDIR /cscope-$CSCOPE_VERSION
 #RUN ./configure \
 #        CC=$ARCH-gcc \

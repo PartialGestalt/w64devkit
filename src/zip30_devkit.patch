@@ -1,0 +1,99 @@
+diff -u --recursive a/fileio.c b/fileio.c
+--- a/fileio.c	2008-05-28 19:13:24.000000000 -0500
++++ b/fileio.c	2023-07-20 10:39:33.835947780 -0500
+@@ -15,6 +15,8 @@
+ 
+ #include "zip.h"
+ #include "crc32.h"
++#include <ctype.h>
++#include <stdlib.h>
+ 
+ #ifdef MACOS
+ #  include "helpers.h"
+diff -u --recursive a/win32/makefile.gcc b/win32/makefile.gcc
+--- a/win32/makefile.gcc	2008-06-22 23:07:30.000000000 -0500
++++ b/win32/makefile.gcc	2023-07-20 10:51:53.660658161 -0500
+@@ -13,7 +13,7 @@
+ 
+ # ------------ GNU C ------------
+ CC=gcc
+-CFLAGS=-O2 -Wall -DWIN32 -DFORCE_WIN32_OVER_UNIX
++CFLAGS=-O2 -Wall -DWIN32 -DFORCE_WIN32_OVER_UNIX $(CFLAGS_EXTRA)
+ ifndef USEZLIB
+ CCFLAGS=$(CFLAGS) $(LOC)
+ else
+@@ -30,14 +30,15 @@
+ endif
+ ASFLAGS=-c $(ASDEFS) $(LOC)
+ 
+-RC=windres
++WINDRES?=windres
++RC=$(WINDRES)
+ 
+ LD=$(CC)
+-LDFLAGS=-o$@ -s
++LDFLAGS=-o$@ -s $(LDFLAGS_EXTRA)
+ ifndef USEZLIB
+-LIBS=-luser32 -ladvapi32
++LIBS=-luser32 -ladvapi32 -lkernel32
+ else
+-LIBS=-L. -lz -luser32 -ladvapi32
++LIBS=-L. -lz -luser32 -ladvapi32 -lkernel32
+ endif
+ 
+ OSDEP_H = win32/osdep.h
+@@ -150,10 +151,10 @@
+ 	$(LD) $(LDFLAGS) $(OBJC) $(LIBS)
+ 
+ zipnote.exe: $(OBJN)
+-	$(LD) $(LDFLAGS) $(OBJN)
++	$(LD) $(LDFLAGS) $(OBJN) $(LIBS)
+ 
+ zipsplit.exe: $(OBJS)
+-	$(LD) $(LDFLAGS) $(OBJS)
++	$(LD) $(LDFLAGS) $(OBJS) $(LIBS)
+ 
+ clean:
+ 	rm -f *.o $(ZIPS)
+diff -u --recursive a/zip.h b/zip.h
+--- a/zip.h	2023-07-20 10:05:03.223523286 -0500
++++ b/zip.h	2023-07-20 10:05:16.847603982 -0500
+@@ -262,7 +262,7 @@
+ 
+ /* ASCII definitions for line terminators in text files: */
+ #define LF     10        /* '\n' on ASCII machines; must be 10 due to EBCDIC */
+-#define CR     13        /* '\r' on ASCII machines; must be 13 due to EBCDIC */
++#define CRx    13        /* '\r' on ASCII machines; must be 13 due to EBCDIC */
+ #define CTRLZ  26        /* DOS & OS/2 EOF marker (used in fileio.c, vms.c) */
+ 
+ /* return codes of password fetches (negative: user abort; positive: error) */
+diff -u --recursive a/zipup.c b/zipup.c
+--- a/zipup.c	2008-06-17 22:40:16.000000000 -0500
++++ b/zipup.c	2023-07-20 10:06:10.863924013 -0500
+@@ -1207,7 +1207,7 @@
+             char c;
+ 
+             if ((c = *b++) == '\n') {
+-               *buf++ = CR; *buf++ = LF; len++;
++               *buf++ = CRx; *buf++ = LF; len++;
+             } else {
+               *buf++ = (char)ascii[(uch)c];
+             }
+@@ -1217,7 +1217,7 @@
+ #endif /* EBCDIC */
+       {
+          do {
+-            if ((*buf++ = *b++) == '\n') *(buf-1) = CR, *buf++ = LF, len++;
++            if ((*buf++ = *b++) == '\n') *(buf-1) = CRx, *buf++ = LF, len++;
+          } while (--size != 0);
+       }
+       buf -= len;
+@@ -1257,7 +1257,7 @@
+ #endif /* EBCDIC */
+       {
+          do {
+-            if (( *buf++ = *b++) == CR && *b == LF) buf--, len--;
++            if (( *buf++ = *b++) == CRx && *b == LF) buf--, len--;
+          } while (--size != 0);
+       }
+       if (len == 0) {
